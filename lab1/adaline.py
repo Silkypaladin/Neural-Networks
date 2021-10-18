@@ -1,34 +1,15 @@
 import math
 import random
-
+from timeit import default_timer as timer
 
 x_train = []
 y_train = []
 w = []
-accepted_error = 0.3
-learning_rate = 0.2
+accepted_error = 0.254
+learning_rate = 0.001
 
-
-# def generate_points(points_am, x, y, x_cord, y_cord, function_type='and'):
-#     y_to_add = 1
-#     if function_type == 'and':
-#         if x_cord != 1 or y_cord != 1:
-#             y_to_add = -1
-#     elif function_type == 'or':
-#         if x_cord == 0 and y_cord == 0:
-#             y_to_add = -1
-#
-#     for i in range(points_am):
-#         if x_cord > 0 and y_cord > 0:
-#             new_point = (random.uniform(x_cord-0.07, x_cord + 0.07), random.uniform(y_cord-0.07, y_cord + 0.07))
-#         elif x_cord > 0:
-#             new_point = (random.uniform(x_cord - 0.07, x_cord + 0.07), random.uniform(0, y_cord + 0.07))
-#         elif y_cord > 0:
-#             new_point = (random.uniform(0, x_cord + 0.07), random.uniform(y_cord - 0.07, y_cord + 0.07))
-#         else:
-#             new_point = (random.uniform(0, x_cord + 0.07), random.uniform(0, y_cord + 0.07))
-#         x.append(new_point)
-#         y.append(y_to_add)
+w_min = -0.8
+w_max = 0.8
 
 
 def bipolar_result(z):
@@ -51,7 +32,7 @@ def calculate_error(y, z):
 def predict(xp):
     global w
     activation = activation_value(xp, w)
-    return bipolar_result(activation)
+    return activation
 
 
 def generate_points(size, max_offset):
@@ -79,15 +60,12 @@ def generate_points(size, max_offset):
 
 def adaline_learn(points_am, function_type='and'):
     global x_train, y_train, w, accepted_error
-    # x_copy = [(0, 0), (0, 1), (1, 0), (1, 1)]
-    # for xp in x_copy:
-    #     generate_points(points_am, x_train, y, xp[0], xp[1], function_type)
 
     x_train, y_train = generate_points(points_am, 0.1)
 
-    w = [random.uniform(-1.0, 1.0) for i in range(len(x_train[0]) + 1)]
+    w = [random.uniform(w_min, w_max) for i in range(len(x_train[0]) + 1)]
     # bias
-    w[0] = random.uniform(-1.0, 1.0)
+    w[0] = random.uniform(w_min, w_max)
     epochs = 0
 
     current_mean_square_error = math.inf
@@ -101,17 +79,20 @@ def adaline_learn(points_am, function_type='and'):
             w[0] = w[0] + 2 * learning_rate * err
             for j in range(len(x_train[i])):
                 w[j + 1] = w[j + 1] + 2 * learning_rate * err * x_train[i][j]
-            epochs += 1
             current_mean_square_error = sum_error / len(x_train)
-    print(f"EPOCHS: {epochs}, last error: {current_mean_square_error}")
+        epochs += 1
+    print(f"Last error: {current_mean_square_error} {epochs}")
 
 
 if __name__ == '__main__':
-    adaline_learn(50)
+    start = timer()
+    adaline_learn(2000)
+    end = timer()
+    print(end - start)
     x_test, y_test = generate_points(20, 0.1)
 
     correct = 0
     for i in range(len(x_test)):
-        if predict(x_test[i]) == y_test[i]:
+        if bipolar_result(predict(x_test[i])) == y_test[i]:
             correct += 1
     print(f"Correct: {correct} / {len(x_test)}")
