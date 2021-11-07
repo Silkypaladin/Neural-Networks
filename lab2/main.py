@@ -3,11 +3,12 @@ from sklearn.datasets import fetch_openml
 from keras.utils.np_utils import to_categorical
 import numpy as np
 from sklearn.model_selection import train_test_split
+import math
 
 
 class MLP:
     def __init__(self):
-        self.l_rate = 0.001
+        self.l_rate = 0.05
         self.sizes = []
         self.activation_functions = []
         self.weights = []
@@ -111,15 +112,76 @@ class MLP:
 
         return np.mean(predictions)
 
-    def train(self, x_train, y_train, x_val, y_val):
-        for x, y in zip(x_train, y_train):
-            x = np.reshape(x, x.shape[0])
-            out = self.go_forward(x)  # y^ (wart. predykowana)
-            w_update, b_update = self.go_backwards(y, out)
-            self.update_all_parameters(w_update, b_update)
+    def update_parameters_batch(self, weight_updates, bias_updates, num_of_elems_in_batch):
+        for i in range(len(self.weights)):
+            self.weights[i] -= self.l_rate * weight_updates[i] / num_of_elems_in_batch
+            self.biases[i] -= self.l_rate * bias_updates[i] / num_of_elems_in_batch
 
-        accuracy = self.calculate_accuracy(x_val, y_val)
-        print(f'Accuracy: {accuracy * 100}')
+    def train_batch(self, x_train, y_train, x_test, y_test, num_of_batches=1000, epochs=10):
+        batches_x = np.array_split(x_train, num_of_batches)
+        batches_y = np.array_split(y_train, num_of_batches)
+        min_err = math.inf
+        weight_cp = np.copy(self.weights)
+        bias_cp = np.copy(self.biases)
+        for i in range(epochs):
+            for x_b, y_b in zip(batches_x, batches_y):
+                weight_updates = None
+                bias_updates = None
+                for x, y in zip(x_b, y_b):
+                    x = np.reshape(x, x.shape[0])
+                    softed_output = self.go_forward(x)
+                    weight_updates_val, bias_updates_val = self.go_backwards(y, softed_output)
+                    if weight_updates is None and bias_updates is None:
+                        weight_updates = weight_updates_val
+                        bias_updates = bias_updates_val
+                    else:
+                        for j in range(len(weight_updates_val)):
+                            bias_updates[j] += bias_updates_val[j]
+                            weight_updates[j] += weight_updates_val[j]
+                self.update_parameters_batch(weight_updates, bias_updates, len(x_b))
+            print(f"Epoch {i}")
+            accuracy = self.calculate_accuracy(x_test, y_test)
+            print(f'Accuracy: {accuracy * 100}')
+            if 1 - accuracy < min_err:
+                min_err = 1 - accuracy
+                weight_cp = np.copy(self.weights)
+                bias_cp = np.copy(self.biases)
+            else:
+                print("Weights reset to previous values.")
+                self.weights = weight_cp
+                self.biases = bias_cp
+
+    def train(self, x_train, y_train, x_val, y_val, epochs=10):
+        for i in range(epochs):
+            for x, y in zip(x_train, y_train):
+                x = np.reshape(x, x.shape[0])
+                out = self.go_forward(x)  # y^ (wart. predykowana)
+                w_update, b_update = self.go_backwards(y, out)
+                self.update_all_parameters(w_update, b_update)
+
+            accuracy = self.calculate_accuracy(x_val, y_val)
+            print(f'Accuracy: {accuracy * 100}')
+
+def test_different_batch_sizes(x_train, y_train, x_val, y_val, epochs=10):
+    sizes = [2000, 3000, 1000, 800, 1500, 2200]
+    mlp = MLP()
+    mlp.add_layer(784, 'sigmoid')
+    mlp.add_layer(196, 'sigmoid')
+    mlp.add_layer(64, 'sigmoid')
+    for s in sizes:
+        print(f'Current batch size: {len(x_train)/s}')
+        mlp.train_batch(x_train, y_train, x_val, y_val, epochs, num_of_batches=s)
+
+def test_different_learning_rates(x_train, y_train, x_val, y_val, epochs=10):
+    l_rates = [0.01, 0.05, 0.1, 0.001, 0.02, 0.008]
+    mlp = MLP()
+    mlp.add_layer(784, 'sigmoid')
+    mlp.add_layer(196, 'sigmoid')
+    mlp.add_layer(64, 'sigmoid')
+    for l in l_rates:
+        print(f'Current learning rate: {l}')
+        mlp.l_rate = l
+        mlp.train(x_train, y_train, x_val, y_val, epochs)
 
 
 def main():
@@ -134,8 +196,12 @@ def main():
     mlp.add_layer(784, 'sigmoid')
     mlp.add_layer(196, 'sigmoid')
     mlp.add_layer(64, 'sigmoid')
+    # mlp.add_layer(120, 'sigmoid')
+    # mlp.add_layer(32, 'sigmoid')
     mlp.add_output_layer()
+    print('Start training')
     mlp.train(x_train, y_train, x_val, y_val)
+    # mlp.train_batch(x_train, y_train, x_val, y_val, epochs=10, num_of_batches=2000)
 
 
 if __name__ == '__main__':
