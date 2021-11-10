@@ -8,7 +8,7 @@ import random
 
 
 class MLP:
-    def __init__(self):
+    def __init__(self, beta1=0.9, beta2=0.9):
         self.l_rate = 0.05
         self.sizes = []
         self.activation_functions = []
@@ -17,6 +17,13 @@ class MLP:
 
         self.activated_layer_outputs = []
         self.layer_outputs = []
+
+        self.w_acc = []
+        self.beta1 = beta1
+        self.beta2 = beta2
+        self.m = []
+        self.v = []
+        self.t = 1
 
     def add_layer(self, size, function):
         self.sizes.append(size)
@@ -29,13 +36,12 @@ class MLP:
 
     def initialize_weights(self):
         for i in range(len(self.sizes) - 1):
-            self.weights.append(np.random.randn(self.sizes[i + 1], self.sizes[i]))
-            # print(self.weights[i])
-            # for j in range(self.sizes[i + 1]):
-            #     for k in range(self.sizes[i]):
-            #         self.weights[i][j][k] = random.uniform(-5, 5)
-            # print(self.weights[i])
+            self.weights.append(np.random.normal(scale=0.5, size=(self.sizes[i + 1], self.sizes[i])))
             self.biases.append(np.ones(self.sizes[i + 1]))
+
+            self.w_acc = [w * 0 for w in self.weights]
+            self.m = [w * 0 for w in self.weights]
+            self.v = [w * 0 for w in self.weights]
 
     @staticmethod
     def sigmoid(x, derivative):
@@ -119,9 +125,17 @@ class MLP:
         return np.mean(predictions)
 
     def update_parameters_batch(self, weight_updates, bias_updates, num_of_elems_in_batch):
+        e = 0.00000001
         for i in range(len(self.weights)):
-            self.weights[i] -= self.l_rate * weight_updates[i] / num_of_elems_in_batch
+            self.m[i] = self.beta1 * self.m[i] + (1 - self.beta1) * weight_updates[i]
+            self.v[i] = self.beta2 * self.v[i] + (1 - self.beta2) * np.square(weight_updates[i])
+
+            m_W_dash = self.m[i] / (1 - np.power(self.beta1, self.t))
+            v_W_dash = self.v[i] / (1 - np.power(self.beta2, self.t))
+
+            self.weights[i] -= (self.l_rate * m_W_dash / (np.sqrt(v_W_dash) + e)) / num_of_elems_in_batch
             self.biases[i] -= self.l_rate * bias_updates[i] / num_of_elems_in_batch
+        self.t += 1
 
     def train_batch(self, x_train, y_train, x_test, y_test, num_of_batches=1000, epochs=10):
         batches_x = np.array_split(x_train, num_of_batches)
@@ -168,59 +182,6 @@ class MLP:
             accuracy = self.calculate_accuracy(x_val, y_val)
             print(f'Accuracy: {accuracy * 100}')
 
-
-def test_different_batch_sizes(x_train, y_train, x_val, y_val, epochs=10):
-    sizes = [2000, 3000, 1000, 800, 1500, 2200]
-    for s in sizes:
-        mlp = MLP()
-        mlp.add_layer(784, 'sigmoid')
-        mlp.add_layer(196, 'sigmoid')
-        mlp.add_layer(64, 'sigmoid')
-        mlp.add_output_layer()
-        print(f'Current batch size: {len(x_train)/s}')
-        mlp.train_batch(x_train, y_train, x_val, y_val, num_of_batches=s, epochs=4)
-
-
-def test_different_learning_rates(x_train, y_train, x_val, y_val, epochs=10):
-    l_rates = [0.01, 0.05, 0.1, 0.001, 0.02, 0.008]
-    for l in l_rates:
-        mlp = MLP()
-        mlp.add_layer(784, 'sigmoid')
-        mlp.add_layer(196, 'sigmoid')
-        mlp.add_layer(64, 'sigmoid')
-        mlp.add_output_layer()
-        print(f'Current learning rate: {l}')
-        mlp.l_rate = l
-        mlp.train(x_train, y_train, x_val, y_val, epochs)
-
-
-def test_different_neuron_amounts(x_train, y_train, x_val, y_val, epochs=10):
-    mlp = MLP()
-    mlp.add_layer(784, 'sigmoid')
-    mlp.add_layer(196, 'sigmoid')
-    mlp.add_layer(196, 'sigmoid')
-    mlp.add_layer(64, 'sigmoid')
-    mlp.add_output_layer()
-
-    mlp2 = MLP()
-    mlp2.add_layer(784, 'relu')
-    mlp2.add_layer(196, 'relu')
-    mlp.add_layer(64, 'relu')
-    mlp2.add_output_layer()
-
-    mlp3 = MLP()
-    mlp3.add_layer(784, 'tanh')
-    mlp3.add_layer(196, 'tanh')
-    mlp.add_layer(64, 'tanh')
-    mlp3.add_output_layer()
-
-    # mlp.train(x_train, y_train, x_val, y_val, epochs)
-    print('----------------')
-    mlp2.train(x_train, y_train, x_val, y_val, epochs)
-    print('----------------')
-    mlp3.train(x_train, y_train, x_val, y_val, epochs)
-
-
 def main():
     x, y = fetch_openml('mnist_784', version=1, return_X_y=True)
     x = np.array(x, dtype='float32')
@@ -231,14 +192,11 @@ def main():
 
     mlp = MLP()
     mlp.add_layer(784, 'sigmoid')
-    mlp.add_layer(196, 'sigmoid')
+    mlp.add_layer(128, 'sigmoid')
     mlp.add_layer(64, 'sigmoid')
     mlp.add_output_layer()
-    mlp.train(x_train, y_train, x_val, y_val, 4)
+    mlp.train_batch(x_train, y_train, x_val, y_val, num_of_batches=1000, epochs=5)
     print('Start training')
-    # test_different_neuron_amounts(x_train, y_train, x_val, y_val, 4)
-    # test_different_batch_sizes(x_train, y_train, x_val, y_val, 4)
-    # mlp.train_batch(x_train, y_train, x_val, y_val, epochs=10, num_of_batches=2000)
 
 
 if __name__ == '__main__':
