@@ -8,7 +8,7 @@ import random
 
 
 class MLP:
-    def __init__(self, gamma=0.7):
+    def __init__(self, gamma=0.7, weights_init_method=''):
         self.l_rate = 0.05
         self.gamma = gamma
         self.sizes = []
@@ -17,6 +17,7 @@ class MLP:
         self.prev_weights_updates = []
         self.biases = []
         self.prev_biases_updates = []
+        self.weights_init_method = weights_init_method
 
         self.activated_layer_outputs = []
         self.layer_outputs = []
@@ -30,11 +31,33 @@ class MLP:
         self.activation_functions.append('softmax')
         self.initialize_weights()
 
+    def xavier(self):
+        return [np.random.normal(loc=0, scale=2 / (self.sizes[i] + self.sizes[i + 1]),
+                                 size=(self.sizes[i + 1], self.sizes[i]))
+                for i in range(len(self.sizes) - 1)]
+
+    def he(self):
+        return [np.random.normal(loc=0, scale=2 / self.sizes[i + 1],
+                                 size=(self.sizes[i + 1], self.sizes[i]))
+                for i in range(len(self.sizes) - 1)]
+
+    def random(self):
+        return [np.random.normal(loc=0, scale=1, size=(self.sizes[i + 1], self.sizes[i]))
+                for i in range(len(self.sizes) - 1)]
+
+    def weights_init_choice(self):
+        if self.weights_init_method == "he":
+            return self.he()
+        elif self.weights_init_method == "xavier":
+            return self.xavier()
+        else:
+            return self.random()
+
     def initialize_weights(self):
         for i in range(len(self.sizes) - 1):
-            self.weights.append(np.random.normal(scale=0.5, size=(self.sizes[i + 1], self.sizes[i])))
+            # self.weights.append(np.random.normal(scale=0.5, size=(self.sizes[i + 1], self.sizes[i])))
+            self.weights = self.weights_init_choice()
             self.biases.append(np.ones(self.sizes[i + 1]))
-
             self.prev_weights_updates = [None] * len(self.weights)
 
     @staticmethod
@@ -187,6 +210,7 @@ class MLP:
             accuracy = self.calculate_accuracy(x_val, y_val)
             print(f'Accuracy: {accuracy * 100}')
 
+
 def main():
     x, y = fetch_openml('mnist_784', version=1, return_X_y=True)
     x = np.array(x, dtype='float32')
@@ -195,7 +219,7 @@ def main():
 
     x_train, x_val, y_train, y_val = train_test_split(x, y, test_size=0.15, random_state=42)
 
-    mlp = MLP()
+    mlp = MLP(0.7, 'he')
     mlp.add_layer(784, 'sigmoid')
     mlp.add_layer(128, 'sigmoid')
     mlp.add_layer(64, 'sigmoid')
